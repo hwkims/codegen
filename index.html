@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Generator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/dracula.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Roboto Mono', monospace;
+            margin: 0;
+            padding: 10px;
+            background: linear-gradient(135deg, #1e1e2f, #2a2a4a);
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        #api-config {
+            background: rgba(30, 30, 47, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #api-config input, #api-config select {
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(40, 40, 60, 0.8);
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        #api-config button {
+            padding: 10px;
+            background: linear-gradient(90deg, #007aff, #00c6ff);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+        }
+
+        #chat-container, #code-container, #result-container {
+            background: rgba(30, 30, 47, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        #chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 10px;
+        }
+
+        #input-wrapper {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 20px;
+            background: rgba(40, 40, 60, 0.8);
+            color: #e0e0e0;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        #user-input:focus {
+            box-shadow: 0 0 10px rgba(0, 118, 255, 0.5);
+            background: rgba(50, 50, 70, 0.9);
+        }
+
+        #generate-btn {
+            padding: 12px 20px;
+            background: linear-gradient(90deg, #007aff, #00c6ff);
+            border: none;
+            border-radius: 20px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        #generate-btn:active {
+            transform: scale(0.95);
+        }
+
+        #code-container, #result-container {
+            flex: 1;
+            min-height: 200px;
+        }
+
+        .cm-editor {
+            height: 100%;
+            border-radius: 7px;
+        }
+
+        #result-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 7px;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: linear-gradient(90deg, #007aff, #00c6ff);
+            color: white;
+            text-align: right;
+            margin-left: auto;
+            max-width: 80%;
+            border-radius: 15px 15px 0 15px;
+        }
+
+        .bot-message {
+            background: rgba(40, 40, 60, 0.9);
+            color: #d0d0ff;
+            margin-right: auto;
+            max-width: 80%;
+            border-radius: 15px 15px 15px 0;
+            white-space: pre-wrap;
+        }
+
+        .error-message {
+            background: linear-gradient(90deg, #ff453a, #ff6b6b);
+            color: white;
+            margin-right: auto;
+            max-width: 80%;
+            border-radius: 15px 15px 15px 0;
+        }
+
+        @media (min-width: 768px) {
+            #app-container {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            #chat-container {
+                flex: 1;
+                max-width: 33%;
+            }
+            #code-container, #result-container {
+                flex: 1;
+                max-width: 33%;
+            }
+        }
+
+        @media (max-width: 767px) {
+            #chat-container, #code-container, #result-container {
+                min-height: 150px;
+            }
+            #user-input, #api-config input, #api-config select {
+                font-size: 14px;
+            }
+            #generate-btn {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="api-config">
+            <select id="ai-model">
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+                <option value="mistral">Mistral</option>
+            </select>
+            <input type="text" id="api-key-input" placeholder="Enter your API key...">
+            <button id="save-api-key">Save API Key</button>
+        </div>
+        <div id="chat-container">
+            <div id="chat-messages"></div>
+            <div id="input-wrapper">
+                <input type="text" id="user-input" placeholder="Enter your request...">
+                <button id="generate-btn">Generate</button>
+            </div>
+        </div>
+        <div id="code-container">
+            <div id="code-editor"></div>
+        </div>
+        <div id="result-container">
+            <iframe id="result-iframe"></iframe>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/edit/closetag.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/edit/closebrackets.min.js"></script>
+
+    <script>
+        const chatMessages = document.getElementById("chat-messages");
+        const userInput = document.getElementById("user-input");
+        const generateBtn = document.getElementById("generate-btn");
+        const codeEditorContainer = document.getElementById("code-editor");
+        const resultIframe = document.getElementById("result-iframe");
+        const aiModelSelect = document.getElementById("ai-model");
+        const apiKeyInput = document.getElementById("api-key-input");
+        const saveApiKeyBtn = document.getElementById("save-api-key");
+        let errorCount = 0;
+
+        const codeEditor = CodeMirror(codeEditorContainer, {
+            mode: { name: "text/html", globalVars: true },
+            theme: "dracula",
+            lineNumbers: true,
+            autoCloseTags: true,
+            autoCloseBrackets: true,
+        });
+
+        // API 키 로드
+        const loadApiKey = () => {
+            const savedKey = localStorage.getItem(`${aiModelSelect.value}-api-key`);
+            if (savedKey) apiKeyInput.value = savedKey;
+        };
+        aiModelSelect.addEventListener("change", loadApiKey);
+        loadApiKey();
+
+        // API 키 저장
+        saveApiKeyBtn.addEventListener("click", () => {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                localStorage.setItem(`${aiModelSelect.value}-api-key`, key);
+                addMessage("API key saved!", "bot");
+            } else {
+                addMessage("Please enter a valid API key.", "bot", true);
+            }
+        });
+
+        function addMessage(message, sender, isError = false) {
+            const messageDiv = document.createElement("div");
+            messageDiv.textContent = message;
+            messageDiv.classList.add("message", `${sender}-message`);
+            if (isError) messageDiv.classList.add("error-message");
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function getCodeFromAI(prompt, isErrorCorrection = false) {
+            const model = aiModelSelect.value;
+            const apiKey = localStorage.getItem(`${model}-api-key`);
+            if (!apiKey) throw new Error("API key not set for selected model.");
+
+            const messages = [
+                { role: "system", content: "You are a helpful assistant that generates clean, well-formatted HTML, CSS, and JavaScript code with proper indentation and modern design principles. Only return the code, no other text." },
+                { role: "user", content: prompt }
+            ];
+            if (isErrorCorrection) {
+                messages[0].content = "You are a helpful assistant that debugs HTML, CSS and JavaScript code. Only return the code, no other text.";
+            }
+
+            let apiUrl, headers, body;
+            switch (model) {
+                case "openai":
+                    apiUrl = "https://api.openai.com/v1/chat/completions";
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                    };
+                    body = {
+                        model: "gpt-3.5-turbo",
+                        messages: messages,
+                        max_tokens: 1000,
+                    };
+                    break;
+                case "gemini":
+                    apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+                    headers = {
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": apiKey,
+                    };
+                    body = {
+                        contents: messages.map(m => ({ role: m.role, parts: [{ text: m.content }] })),
+                    };
+                    break;
+                case "mistral":
+                    apiUrl = "https://api.mixtral.ai/v1/chat/completions"; // 가정된 URL, 실제 확인 필요
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                    };
+                    body = {
+                        model: "mistral-large",
+                        messages: messages,
+                        max_tokens: 1000,
+                    };
+                    break;
+                default:
+                    throw new Error("Unsupported AI model.");
+            }
+
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: headers,
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`${model} API error: ${errorData.error?.message || response.statusText}`);
+            }
+
+            const data = await response.json();
+            return model === "gemini" ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
+        }
+
+        function loadCodeToIframe(code) {
+            const iframeDocument = resultIframe.contentDocument || resultIframe.contentWindow.document;
+            iframeDocument.open();
+            iframeDocument.write(code);
+            iframeDocument.close();
+
+            resultIframe.contentWindow.onerror = (message, source, lineno, colno, error) => {
+                const errorMsg = `Error: ${message}\nLine: ${lineno}\nColumn: ${colno}`;
+                addMessage(errorMsg, "bot", true);
+                if (!message.toLowerCase().includes(aiModelSelect.value) && !message.toLowerCase().includes("api")) {
+                    handleCodeError(codeEditor.getValue(), errorMsg);
+                }
+                return true;
+            };
+        }
+
+        codeEditor.on("change", () => {
+            const code = codeEditor.getValue();
+            loadCodeToIframe(code);
+        });
+
+        async function handleInput() {
+            const userMessage = userInput.value.trim();
+            if (!userMessage) return;
+            addMessage(userMessage, "user");
+            userInput.value = "";
+            errorCount = 0;
+            generateBtn.disabled = true;
+
+            try {
+                const generatedCode = await getCodeFromAI(userMessage);
+                addMessage(generatedCode, "bot");
+                codeEditor.setValue(generatedCode);
+                loadCodeToIframe(generatedCode);
+            } catch (error) {
+                addMessage(`Error: ${error.message}`, "bot", true);
+                console.error(error);
+            } finally {
+                generateBtn.disabled = false;
+            }
+        }
+
+        userInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                handleInput();
+            }
+        });
+
+        generateBtn.addEventListener("click", handleInput);
+
+        async function handleCodeError(code, errorMessage) {
+            if (errorCount > 3) {
+                addMessage("Failed to fix error after multiple attempts. Please check manually.", "bot", true);
+                return;
+            }
+            errorCount++;
+
+            const prompt = `I got this error:\n\n${code}\n\nError message:\n${errorMessage}\n\nPlease fix it.`;
+            try {
+                const correctedCode = await getCodeFromAI(prompt, true);
+                addMessage("Attempting to fix the code...", "bot");
+                addMessage(correctedCode, "bot");
+                codeEditor.setValue(correctedCode);
+                loadCodeToIframe(correctedCode);
+            } catch (error) {
+                addMessage(`Error during correction: ${error.message}`, "bot", true);
+            }
+        }
+    </script>
+</body>
+</html>
